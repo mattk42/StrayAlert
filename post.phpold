@@ -1,0 +1,106 @@
+<?php
+require_once('header.php');
+require_once('functions.php');
+
+#Function to check an array of fields and set variables based off of those fields
+function post($fields,$cols,$table,$url,$value_array){
+        foreach ($fields as $field){
+                if(isset($_POST[$field])){
+                        global $$field;
+			$$field="'".mysql_real_escape_string($_POST[$field])."'";
+			$value_array[]=$$field;
+                }
+                else{
+			echo "Form Error";	
+		}
+        }
+	$values=implode(",",$value_array);
+	$columns=implode(",",$cols);
+	$query="INSERT INTO ".$table."(".$columns.") VALUES(".$values.")";
+        mysql_query($query) or die(mysql_error());
+	header("Location: $root_dir/$url");	
+}
+
+#Login stuff
+if(isset($_GET['l']) && $_GET['l'] == '1'){
+        $username=mysql_real_escape_string($_POST['username']);
+        $password=mysql_real_escape_string($_POST['password']);
+
+        $query="SELECT id,lat,lng FROM user WHERE username='".$username."' AND hashword=SHA1('".$password."')" or die(mysql_error());
+        $res = mysql_query($query) or die(mysql_error());;
+        $count = mysql_num_rows($res);
+        if($count == 1){
+       
+	         echo "Login Successfull";
+                session_start();
+                $row = mysql_fetch_row($res);
+                $_SESSION['id']=$row[0];
+                $_SESSION['username']=$username;
+		$_SESSION['lat']=$row[1];
+		$_SESSION['lng']=$row[2];
+
+		mysql_query("UPDATE user SET last_login=now() WHERE id='".$_SESSION['id']."'") or die(mysql_error());
+
+                header( "Location: $root_dir/index.php" ) ;
+        }
+        else{
+                echo "Login Failed";
+        }
+}
+
+#Logout Stuff
+else if(isset($_SESSION['id']) && isset($_GET['lo']) && $_GET['lo'] == '1'){
+	session_destroy();
+	header( "Location: $root_dir/index.php" ) ;
+}
+
+#registration stuff
+else if(isset($_GET['r']) && $_GET['r']=='1'){
+        #check and escape all of the form fields
+        $fields=array('username','email','phone','address','city','state','zip');
+
+	if(checkFields($fields)==1){die("There was an error with registration.");}
+
+        #special check on the passwords
+        if($_POST['password1'] == $_POST['password2']){
+                $password=mysql_real_escape_string($_POST['password1']);
+        }
+        else{
+                die("Passwords did not match");
+        }
+	$loc=geoloc($address." ".$city." ".$state." ".$zip);
+        $query="INSERT INTO user(username,email,phone,hashword,address,city,state,zip,lat,lng) VALUES('".$username."','".$email."','".$phone."',SHA1('".$password."'),'".$address."','".$city."','".$state."','".$zip."','".$loc[0]."','".$loc[1]."')";
+        mysql_query($query) or die(mysql_error());
+        echo "Form Submitted!";
+}
+
+#add stray
+else if( isset($_SESSION['id']) && isset($_GET['a']) && $_GET['a']=='1'){
+	#check and escape all of the form fields
+	$fields=array('address','city','state','zip','type','breed','color','approx_age','sex','image','notes');
+
+        if(checkFields($fields)==1){die("There was an error adding stray.");}
+	
+	$loc=geoloc($address." ".$city." ".$state." ".$zip);
+	
+	$query="INSERT INTO stray(user_id,address,city,state,zip,lat,lng,type,breed,color,approx_age,sex,image,notes) VALUES('".$_SESSION['id']."','".$address."','".$city."','".$state."','".$zip."','".$loc[0]."','".$loc[1]."','".$type."','".$breed."','".$color."','".$approx_age."','".$sex."','".$image."','".$notes."')";
+	mysql_query($query) or die(mysql_error());
+	header( "Location: $root_dir/index.php" ) ;
+}
+
+#add pet
+else if(isset($_SESSION['id']) && isset($_GET['p']) && $_GET['p']=='1'){
+ 	#check and escape all of the form fields
+	$value_array[]=$_SESSION['id'];
+	$value_array[]="'Home'";
+        $fields=array('name','petid','type','breed','color','approx_age','birthday','sex','image','notes');
+	$cols=array('user_id','state','name','petid','type','breed','color','age','birthday','sex','image','notes');
+	echo post($fields,$cols,'pet','pets.php',$value_array);
+	 	
+}
+
+#if nothing happened, go home
+#header( "Location: $root_dir/index.php" ) ;
+
+
+?>
